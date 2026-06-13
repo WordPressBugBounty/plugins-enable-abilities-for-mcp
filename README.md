@@ -1,0 +1,1 @@
+# plugins-enable-abilities-for-mcp
