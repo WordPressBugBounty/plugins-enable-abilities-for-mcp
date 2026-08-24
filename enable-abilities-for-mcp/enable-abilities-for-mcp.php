@@ -3,7 +3,7 @@
  * Plugin Name:       Enable Abilities for MCP
  * Plugin URI:        https://mcp.fabiomontenegro.com/
  * Description:       Manage which WordPress Abilities are exposed to MCP servers. Enable or disable each ability individually from the dashboard.
- * Version:           2.4.0
+ * Version:           2.5.0
  * Requires at least: 6.9
  * Requires PHP:      8.0
  * Author:            Fabio Montenegro
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'EWPA_VERSION', '2.4.0' );
+define( 'EWPA_VERSION', '2.5.0' );
 define( 'EWPA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EWPA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'EWPA_OPTION_KEY', 'ewpa_enabled_abilities' );
@@ -275,6 +275,12 @@ add_action( 'plugins_loaded', 'ewpa_maybe_migrate_keys_v230' );
 
 // Adds the v2.4.0 Tutor LMS abilities to existing installs.
 add_action( 'plugins_loaded', 'ewpa_maybe_migrate_keys_v240' );
+
+// Adds the v2.5.0 Tutor LMS course/progress/quiz abilities to existing installs.
+add_action( 'plugins_loaded', 'ewpa_maybe_migrate_keys_v250' );
+
+// Adds ewpa/duplicate-post introduced in v2.5.0 to existing installs.
+add_action( 'plugins_loaded', 'ewpa_maybe_migrate_keys_v251' );
 
 
 /*
@@ -698,6 +704,77 @@ function ewpa_maybe_migrate_keys_v240() {
 }
 
 /**
+ * Adds the Tutor LMS course/progress/quiz abilities introduced in v2.5.0 to existing installs.
+ *
+ * Read abilities only. ewpa/tutor-enroll-user and ewpa/tutor-unenroll-user
+ * are opt-in (manage_options, write) and stay disabled, matching the
+ * ewpa/ld-enroll-user / ewpa/ld-unenroll-user precedent.
+ *
+ * @return void
+ */
+function ewpa_maybe_migrate_keys_v250() {
+	if ( get_option( 'ewpa_keys_migrated_v250' ) ) {
+		return;
+	}
+
+	$enabled = get_option( EWPA_OPTION_KEY );
+	if ( ! is_array( $enabled ) ) {
+		update_option( 'ewpa_keys_migrated_v250', true );
+		return;
+	}
+
+	$new_abilities = array(
+		'ewpa/tutor-get-courses',
+		'ewpa/tutor-get-course',
+		'ewpa/tutor-get-user-progress',
+		'ewpa/tutor-get-quiz-results',
+	);
+
+	$changed = false;
+	foreach ( $new_abilities as $key ) {
+		if ( ! in_array( $key, $enabled, true ) ) {
+			$enabled[] = $key;
+			$changed   = true;
+		}
+	}
+
+	if ( $changed ) {
+		update_option( EWPA_OPTION_KEY, $enabled );
+	}
+
+	update_option( 'ewpa_keys_migrated_v250', true );
+}
+
+/**
+ * Adds ewpa/duplicate-post introduced in v2.5.0 to existing installs.
+ *
+ * @return void
+ */
+function ewpa_maybe_migrate_keys_v251(): void {
+	$enabled = get_option( EWPA_OPTION_KEY );
+	if ( ! is_array( $enabled ) ) {
+		return;
+	}
+	if ( ! in_array( 'ewpa/duplicate-post', $enabled, true ) ) {
+		$enabled[] = 'ewpa/duplicate-post';
+		update_option( EWPA_OPTION_KEY, $enabled );
+	}
+}
+
+/**
+ * Runs all ability key migrations in order.
+ *
+ * Called at the start of ewpa_register_custom_abilities() so every migration
+ * completes before any ewpa_is_ability_enabled() check runs — regardless of
+ * when wp_abilities_api_init fires relative to plugins_loaded.
+ *
+ * @return void
+ */
+function ewpa_run_migrations(): void {
+	ewpa_maybe_migrate_keys_v251();
+}
+
+/**
  * Returns the mapping from old Spanish keys to new English keys.
  *
  * @return array
@@ -852,6 +929,10 @@ function ewpa_get_abilities_registry() {
 				'ewpa/upload-image'     => array(
 					'label' => __( 'Upload Image from URL', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Download an image from an external URL and register it in the media library. Returns the attachment ID.', 'enable-abilities-for-mcp' ),
+				),
+				'ewpa/duplicate-post'   => array(
+					'label' => __( 'Duplicate Post / Page / CPT', 'enable-abilities-for-mcp' ),
+					'desc'  => __( 'Create an exact copy of any post, page, or CPT item — including all meta and taxonomy terms. The duplicate is saved as draft by default.', 'enable-abilities-for-mcp' ),
 				),
 			),
 		),
@@ -1209,8 +1290,9 @@ function ewpa_get_abilities_registry() {
 		),
 		'tutor'                   => array(
 			'section_label'  => __( 'Tutor LMS', 'enable-abilities-for-mcp' ),
-			'section_desc'   => __( 'Read and update a Tutor LMS lesson\'s video source. Requires Tutor LMS (tutor_utils()).', 'enable-abilities-for-mcp' ),
-			'section_icon'   => 'dashicons-video-alt3',
+			'section_desc'   => __( 'Query and manage Tutor LMS courses, lesson videos, user progress, quiz results, and enrollments. Requires Tutor LMS (tutor_utils()).', 'enable-abilities-for-mcp' ),
+			'section_icon'   => 'dashicons-book',
+			'section_badge'  => 'warning',
 			'section_notice' => 'ewpa_section_notice_tutor',
 			'abilities'      => array(
 				'ewpa/tutor-get-lesson-video'    => array(
@@ -1222,6 +1304,36 @@ function ewpa_get_abilities_registry() {
 					'label'   => __( 'Update Lesson Video', 'enable-abilities-for-mcp' ),
 					'desc'    => __( 'Sets a Tutor LMS lesson\'s video source using Tutor\'s own storage function, avoiding the string-only limitation of the generic Update Post Meta ability.', 'enable-abilities-for-mcp' ),
 					'default' => true,
+				),
+				'ewpa/tutor-get-courses'         => array(
+					'label'   => __( 'List Courses', 'enable-abilities-for-mcp' ),
+					'desc'    => __( 'List published Tutor LMS courses with title, slug, permalink, and enrolled user count. Supports pagination and title search.', 'enable-abilities-for-mcp' ),
+					'default' => true,
+				),
+				'ewpa/tutor-get-course'          => array(
+					'label'   => __( 'Get Single Course', 'enable-abilities-for-mcp' ),
+					'desc'    => __( 'Full course detail: title, description, permalink, and topics with ordered lessons, quizzes, and assignments.', 'enable-abilities-for-mcp' ),
+					'default' => true,
+				),
+				'ewpa/tutor-get-user-progress'   => array(
+					'label'   => __( 'Get User Progress', 'enable-abilities-for-mcp' ),
+					'desc'    => __( 'User progress in a specific course: enrollment status/date, steps completed/total, and completion percentage.', 'enable-abilities-for-mcp' ),
+					'default' => true,
+				),
+				'ewpa/tutor-get-quiz-results'    => array(
+					'label'   => __( 'Get Quiz Results', 'enable-abilities-for-mcp' ),
+					'desc'    => __( 'Quiz attempt history for a user (optionally filtered by quiz ID): score, total, pass/fail, and timestamps. Sorted newest first.', 'enable-abilities-for-mcp' ),
+					'default' => true,
+				),
+				'ewpa/tutor-enroll-user'         => array(
+					'label'   => __( 'Enroll User', 'enable-abilities-for-mcp' ),
+					'desc'    => __( 'Enroll a user in a Tutor LMS course. Requires manage_options. Opt-in required — disabled by default.', 'enable-abilities-for-mcp' ),
+					'default' => false,
+				),
+				'ewpa/tutor-unenroll-user'       => array(
+					'label'   => __( 'Unenroll User', 'enable-abilities-for-mcp' ),
+					'desc'    => __( "Cancel a user's enrollment in a Tutor LMS course. Requires manage_options. Destructive — opt-in required.", 'enable-abilities-for-mcp' ),
+					'default' => false,
 				),
 			),
 		),
