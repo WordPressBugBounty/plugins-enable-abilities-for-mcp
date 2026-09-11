@@ -3,7 +3,7 @@
  * Plugin Name:       Enable Abilities for MCP
  * Plugin URI:        https://mcp.fabiomontenegro.com/
  * Description:       Connect Claude, ChatGPT & any MCP client to WordPress. 102 abilities: content, SEO, WooCommerce, FSE, LMS & more. Free & self-hosted.
- * Version:           2.8.1
+ * Version:           2.9.0
  * Requires at least: 6.9
  * Requires PHP:      8.0
  * Author:            Fabio Montenegro
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'EWPA_VERSION', '2.8.1' );
+define( 'EWPA_VERSION', '2.9.0' );
 define( 'EWPA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EWPA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'EWPA_OPTION_KEY', 'ewpa_enabled_abilities' );
@@ -45,13 +45,14 @@ require_once EWPA_PLUGIN_DIR . 'includes/auth.php';
 require_once EWPA_PLUGIN_DIR . 'includes/admin.php';
 require_once EWPA_PLUGIN_DIR . 'includes/abilities.php';
 require_once EWPA_PLUGIN_DIR . 'includes/thirdparty.php';
+require_once EWPA_PLUGIN_DIR . 'includes/oauth-connectors.php';
 
-// Composer autoloader — runtime dependency wp-media/mcp-oauth (claude.ai custom connectors).
+// Composer autoloader — runtime dependency wp-media/mcp-oauth (OAuth custom connectors).
 if ( file_exists( EWPA_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
 	require_once EWPA_PLUGIN_DIR . 'vendor/autoload.php';
 }
 
-// OAuth 2.1 layer for claude.ai custom connectors. Opt-in: Settings › WP Abilities › Connection.
+// OAuth 2.1 layer for claude.ai and ChatGPT custom connectors. Opt-in: Settings › WP Abilities › Connection.
 add_action( 'plugins_loaded', 'ewpa_maybe_boot_oauth', 5 );
 
 /**
@@ -73,6 +74,10 @@ function ewpa_maybe_boot_oauth(): void {
 	}
 
 	\WPMedia\MCP\OAuth\Bootstrap::instance();
+
+	// ChatGPT and other RFC 7591 clients, which the library's CIMD-only client
+	// model cannot admit. Adds /oauth/register and the callback allowlist.
+	ewpa_oauth_connectors_boot();
 
 	add_filter( 'redirect_canonical', 'ewpa_oauth_wellknown_no_canonical' );
 	add_action( 'init', 'ewpa_oauth_wellknown_path_suffix_compat', 0 );
