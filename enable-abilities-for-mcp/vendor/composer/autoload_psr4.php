@@ -6,7 +6,5 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
-    'WP\\McpSchema\\' => array($vendorDir . '/wordpress/php-mcp-schema/src'),
-    'WP\\MCP\\' => array($vendorDir . '/wordpress/mcp-adapter/includes'),
     'WPMedia\\MCP\\OAuth\\' => array($vendorDir . '/wp-media/mcp-oauth/inc'),
 );
