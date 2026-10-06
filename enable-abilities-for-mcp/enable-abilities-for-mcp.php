@@ -3,7 +3,7 @@
  * Plugin Name:       Enable Abilities for MCP
  * Plugin URI:        https://mcp.fabiomontenegro.com/
  * Description:       Connect Claude, ChatGPT & any MCP client to WordPress. 112 abilities: content, SEO, WooCommerce, FSE, LMS & more. Free & self-hosted.
- * Version:           2.13.0
+ * Version:           2.13.2
  * Requires at least: 6.9
  * Requires PHP:      8.0
  * Author:            Fabio Montenegro
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'EWPA_VERSION', '2.13.0' );
+define( 'EWPA_VERSION', '2.13.2' );
 define( 'EWPA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EWPA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'EWPA_OPTION_KEY', 'ewpa_enabled_abilities' );
@@ -48,6 +48,7 @@ require_once EWPA_PLUGIN_DIR . 'includes/code-snippets.php';
 require_once EWPA_PLUGIN_DIR . 'includes/abilities.php';
 require_once EWPA_PLUGIN_DIR . 'includes/thirdparty.php';
 require_once EWPA_PLUGIN_DIR . 'includes/oauth-connectors.php';
+require_once EWPA_PLUGIN_DIR . 'includes/oauth-sessions.php';
 
 // Composer autoloader — runtime dependency wp-media/mcp-oauth (OAuth custom connectors).
 if ( file_exists( EWPA_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
@@ -203,6 +204,9 @@ function ewpa_oauth_wellknown_no_canonical( $redirect_url ) {
 
 // Activation: set all abilities enabled by default.
 register_activation_hook( __FILE__, 'ewpa_activate' );
+
+// Deactivation: revoke OAuth sessions so they cannot revive on reactivation.
+register_deactivation_hook( __FILE__, 'ewpa_oauth_on_deactivate' );
 
 // Upgrade: runs once per version to handle file-only updates (no reactivation).
 add_action( 'plugins_loaded', 'ewpa_maybe_upgrade' );

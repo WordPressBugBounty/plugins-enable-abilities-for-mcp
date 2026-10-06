@@ -5,7 +5,7 @@ Tags: mcp, ai, rest-api, content-management, woocommerce
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 2.13.0
+Stable tag: 2.13.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -204,7 +204,7 @@ Prefer tokens? Application Passwords (per-user) and a single-admin Bearer token 
 1. In your WordPress dashboard, go to **Plugins > Add New** and search for **Enable Abilities for MCP**.
 2. Click **Install Now**, then **Activate**.
 3. Go to **Settings > WP Abilities** to manage which abilities are active.
-4. Install and configure the [MCP Adapter](https://github.com/WordPress/mcp-adapter/releases) plugin to connect with AI assistants.
+4. Install and configure the [MCP Adapter](https://wordpress.org/plugins/mcp-adapter/) plugin to connect with AI assistants.
 
 == Frequently Asked Questions ==
 
@@ -246,6 +246,10 @@ In almost every reported case the OAuth flow is fine and the request never reach
 
 Turn on the OAuth server on the Connection tab, then turn on **ChatGPT & Other OAuth Connectors** below it. Check the **Allowed callback URLs** box — it is prefilled with the callbacks ChatGPT is commonly seen to use, so confirm the exact one your connector screen shows and delete the rest. Save, then in ChatGPT turn on Developer mode (available on paid plans) and create a connector with the same MCP server URL. ChatGPT reads the discovery document, finds `registration_endpoint`, registers itself, and runs the normal login-and-consent flow. The callback allowlist is the security boundary: a self-registered client can only ever return a user to a URL you listed.
 
+= The ChatGPT connector fails with "metadata must advertise PKCE support with code_challenge_methods_supported containing S256" — why? =
+
+The discovery documents do advertise `S256`, and checking them in a browser proves nothing: ChatGPT reads them server-side with the same non-browser User-Agent Claude uses (`python-httpx`). When a WAF or bot protection answers that request with a 403 or an HTML challenge page, ChatGPT never gets the authorization-server document and falls back to the protected-resource document, which has no PKCE field — hence this error. Diagnose it like the claude.ai case above, with `curl -A "python-httpx/0.28.1" https://your-site.com/.well-known/oauth-authorization-server` from an external machine, and ask your host to allow that User-Agent for `/.well-known/oauth-*`, `/oauth/*`, and `/wp-json/mcp/*`. With `WP_DEBUG_LOG` on, `[DISCOVERY] request received` lines in `wp-content/debug.log` tell you whether the request reached WordPress at all.
+
 = The OAuth discovery documents return a 301 redirect or 404 — is that a problem? =
 
 Yes — strict OAuth clients require a direct `200` on `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource`. This plugin already prevents WordPress's trailing-slash canonical redirect on those paths and serves the RFC 9728 path-suffixed variants. If they still return 404, your web server is intercepting `.well-known/` before WordPress runs (common with Let's Encrypt auto-SSL configs) — see **Tools → Site Health** for the "MCP OAuth discovery documents" check and ask your host to route those two paths to WordPress.
@@ -255,6 +259,18 @@ Yes — strict OAuth clients require a direct `200` on `/.well-known/oauth-autho
 1. Admin settings page showing all abilities organized by category with toggle switches.
 
 == Changelog ==
+
+= 2.13.2 =
+* New: FAQ entry for the ChatGPT connector failing with "metadata must advertise PKCE support with code_challenge_methods_supported containing S256". Both Claude and ChatGPT fetch the discovery documents server-side with a `python-httpx` User-Agent, so a WAF blocking it breaks the connector while every browser check keeps passing. Reported by @slavaliutkevich.
+* Updated: the MCP Adapter links now point to its WordPress.org page instead of its GitHub releases. The plugin was published to the directory on 2026-10-02, so it can be installed from the dashboard like any other plugin.
+
+= 2.13.1 =
+* Security fix: turning the "claude.ai OAuth Custom Connector" switch off now ends every existing OAuth connector session on that site. Before, the sessions were only unreachable while the switch was off, so turning it back on let an old connector reconnect on its own for up to 30 days without a new approval.
+* Security fix: the OAuth server now stays off while the switch is off even when another plugin boots the same OAuth library. On some multisite networks the MCP endpoint kept answering, and accepting existing tokens, with the switch off.
+* Security fix: changing a user's password, or using "Log Out Everywhere" on their profile, now also ends that user's OAuth connector sessions. Application Passwords the user created by hand are never touched.
+* Fix: deactivating the plugin ends its OAuth connector sessions, so they cannot come back when it is activated again.
+* Improvement: the Application Password behind each OAuth session is now named "MCP OAuth – <client> – <date>" instead of just the client name, and its "Last Used" and "Last IP" columns are filled in, so you can see what you are revoking under Users › Profile › Application Passwords.
+* New: Regression suite for session revocation (`tests/oauth-sessions-test.php`). Runs without WordPress: `php tests/oauth-sessions-test.php`.
 
 = 2.13.0 =
 * New: the CPT abilities can manage post types that are not public, when they are on an explicit allowlist. Tutor LMS `topics` is on it by default when Tutor LMS is active, so an assistant can finally build a course tree: course, topic, lesson. Every other non-public type is still rejected, WordPress built-ins remain unreachable, and all capability checks are unchanged. Site owners can add their own structural types with the new `ewpa_manageable_private_post_types` filter. Reported from a Tutor LMS site.
@@ -379,6 +395,12 @@ Yes — strict OAuth clients require a direct `200` on `/.well-known/oauth-autho
 * See [changelog.txt](https://plugins.trac.wordpress.org/browser/enable-abilities-for-mcp/trunk/changelog.txt) for the full history of older versions.
 
 == Upgrade Notice ==
+
+= 2.13.2 =
+Documentation only: explains the ChatGPT PKCE error caused by a WAF blocking the discovery requests, and points the MCP Adapter links at its new WordPress.org page.
+
+= 2.13.1 =
+Security fix: turning the OAuth connector off, changing a password or logging out everywhere now ends existing OAuth connector sessions. Recommended for every site using the claude.ai or ChatGPT connector.
 
 = 2.13.0 =
 New: CPT abilities can now manage Tutor LMS topics, so a full course tree can be built over MCP, and `ewpa/update-cpt-item` can re-parent and reorder items.
