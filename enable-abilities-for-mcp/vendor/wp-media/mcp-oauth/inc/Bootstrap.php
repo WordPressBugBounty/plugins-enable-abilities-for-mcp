@@ -6,7 +6,8 @@
  * Bootstrap::instance() (recommended on the 'plugins_loaded' action); the
  * first call wires the entire library to WordPress, every subsequent call
  * (from the same or another consuming plugin) returns the same instance and
- * binds nothing further.
+ * binds nothing further. Nothing is wired when the MCP Adapter plugin is not
+ * loaded.
  */
 
 declare( strict_types=1 );
@@ -20,6 +21,7 @@ use WPMedia\MCP\OAuth\Auth\CimdResolver;
 use WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier;
 use WPMedia\MCP\OAuth\Auth\ConsentEndpoint;
 use WPMedia\MCP\OAuth\Auth\Discovery\Endpoints as DiscoveryEndpoints;
+use WPMedia\MCP\OAuth\Auth\Discovery\HealthCheck as DiscoveryHealthCheck;
 use WPMedia\MCP\OAuth\Auth\RevokeEndpoint;
 use WPMedia\MCP\OAuth\Auth\Rewrite;
 use WPMedia\MCP\OAuth\Auth\Router;
@@ -68,12 +70,20 @@ final class Bootstrap {
 	/**
 	 * Return the single Bootstrap instance, wiring the library on first call.
 	 *
+	 * A call made before 'plugins_loaded' defers wiring to that action, so the
+	 * MCP Adapter plugin is detected regardless of plugin load order.
+	 *
 	 * @return self
 	 */
 	public static function instance(): self {
 		if ( ! isset( self::$instance ) ) {
 			self::$instance = new self();
-			self::$instance->register();
+
+			if ( did_action( 'plugins_loaded' ) ) {
+				self::$instance->register();
+			} else {
+				add_action( 'plugins_loaded', [ self::$instance, 'register' ], 0 );
+			}
 		}
 
 		return self::$instance;
@@ -105,10 +115,20 @@ final class Bootstrap {
 	/**
 	 * Wire the object graph and bind every WordPress hook.
 	 *
+	 * Public only to serve as the deferred 'plugins_loaded' callback of
+	 * instance(); never call it directly.
+	 *
+	 * @internal
+	 *
 	 * @return void
 	 */
-	private function register(): void {
+	public function register(): void {
 		if ( self::$initialized ) {
+			return;
+		}
+
+		// The MCP Adapter plugin is a runtime requirement; without it, wire nothing.
+		if ( ! class_exists( McpAdapter::class ) ) {
 			return;
 		}
 
@@ -116,15 +136,14 @@ final class Bootstrap {
 
 		$this->register_auth_router();
 		$this->register_discovery( $this->context );
+		$this->register_discovery_health_check( $this->context );
 		$this->register_transport( $this->context );
 
 		add_action( 'init', [ SecretManager::class, 'ensure_secret' ], 5 );
 		add_action( 'init', [ $this, 'maybe_flush_rewrite_rules' ], 20 );
 
 		// Ensure the adapter is booted so it fires mcp_adapter_init on rest_api_init@15.
-		if ( class_exists( McpAdapter::class ) ) {
-			McpAdapter::instance();
-		}
+		McpAdapter::instance();
 
 		self::$initialized = true;
 	}
@@ -168,13 +187,25 @@ final class Bootstrap {
 	}
 
 	/**
+	 * Wire the Site Health self-check for the .well-known discovery documents.
+	 *
+	 * @param Context $context OAuth server context.
+	 * @return void
+	 */
+	private function register_discovery_health_check( Context $context ): void {
+		$health_check = new DiscoveryHealthCheck( $context );
+
+		add_filter( 'site_status_tests', [ $health_check, 'add_test' ] );
+	}
+
+	/**
 	 * Wire MCP server + abilities registration.
 	 *
 	 * @param Context $context OAuth server context.
 	 * @return void
 	 */
 	private function register_transport( Context $context ): void {
-		$registrar = new ServerRegistrar( new Server(), $context );
+		$registrar = new ServerRegistrar( new Server( $context ), $context );
 
 		add_action( 'wp_abilities_api_categories_init', [ $registrar, 'ensure_default_category' ] );
 		add_action( 'wp_abilities_api_init', [ $registrar, 'ensure_shared_abilities_registered' ] );

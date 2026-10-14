@@ -13,6 +13,7 @@ return array(
     'WPMedia\\MCP\\OAuth\\Auth\\ClaudeClientVerifier' => $vendorDir . '/wp-media/mcp-oauth/inc/Auth/ClaudeClientVerifier.php',
     'WPMedia\\MCP\\OAuth\\Auth\\ConsentEndpoint' => $vendorDir . '/wp-media/mcp-oauth/inc/Auth/ConsentEndpoint.php',
     'WPMedia\\MCP\\OAuth\\Auth\\Discovery\\Endpoints' => $vendorDir . '/wp-media/mcp-oauth/inc/Auth/Discovery/Endpoints.php',
+    'WPMedia\\MCP\\OAuth\\Auth\\Discovery\\HealthCheck' => $vendorDir . '/wp-media/mcp-oauth/inc/Auth/Discovery/HealthCheck.php',
     'WPMedia\\MCP\\OAuth\\Auth\\Http404Trait' => $vendorDir . '/wp-media/mcp-oauth/inc/Auth/Http404Trait.php',
     'WPMedia\\MCP\\OAuth\\Auth\\JWT' => $vendorDir . '/wp-media/mcp-oauth/inc/Auth/JWT.php',
     'WPMedia\\MCP\\OAuth\\Auth\\ParseBodyTrait' => $vendorDir . '/wp-media/mcp-oauth/inc/Auth/ParseBodyTrait.php',

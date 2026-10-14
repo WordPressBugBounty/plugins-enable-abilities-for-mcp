@@ -19,18 +19,6 @@
             'aliases' => array(),
             'dev_requirement' => false,
         ),
-        'wordpress/mcp-adapter' => array(
-            'dev_requirement' => false,
-            'replaced' => array(
-                0 => '*',
-            ),
-        ),
-        'wordpress/php-mcp-schema' => array(
-            'dev_requirement' => false,
-            'replaced' => array(
-                0 => '*',
-            ),
-        ),
         'wp-media/apply-filters-typed' => array(
             'pretty_version' => 'v1.2',
             'version' => '1.2.0.0',
@@ -41,9 +29,9 @@
             'dev_requirement' => false,
         ),
         'wp-media/mcp-oauth' => array(
-            'pretty_version' => 'v1.0.3',
-            'version' => '1.0.3.0',
-            'reference' => 'c19fc9ec1e084f678f0eb2cf049f3f752712ceac',
+            'pretty_version' => 'v2.0',
+            'version' => '2.0.0.0',
+            'reference' => '0031bc3d1e74f07fabd09e05ec114d9fb1863b7c',
             'type' => 'library',
             'install_path' => __DIR__ . '/../wp-media/mcp-oauth',
             'aliases' => array(),

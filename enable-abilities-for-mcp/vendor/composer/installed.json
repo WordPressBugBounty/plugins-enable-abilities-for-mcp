@@ -49,22 +49,21 @@
         },
         {
             "name": "wp-media/mcp-oauth",
-            "version": "v1.0.3",
-            "version_normalized": "1.0.3.0",
+            "version": "v2.0",
+            "version_normalized": "2.0.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/wp-media/mcp-oauth.git",
-                "reference": "c19fc9ec1e084f678f0eb2cf049f3f752712ceac"
+                "reference": "0031bc3d1e74f07fabd09e05ec114d9fb1863b7c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/wp-media/mcp-oauth/zipball/c19fc9ec1e084f678f0eb2cf049f3f752712ceac",
-                "reference": "c19fc9ec1e084f678f0eb2cf049f3f752712ceac",
+                "url": "https://api.github.com/repos/wp-media/mcp-oauth/zipball/0031bc3d1e74f07fabd09e05ec114d9fb1863b7c",
+                "reference": "0031bc3d1e74f07fabd09e05ec114d9fb1863b7c",
                 "shasum": ""
             },
             "require": {
                 "php": ">=7.4",
-                "wordpress/mcp-adapter": "^0.5",
                 "wp-media/apply-filters-typed": "^1.0"
             },
             "require-dev": {
@@ -72,15 +71,19 @@
                 "php": ">=7.4",
                 "php-stubs/wordpress-tests-stubs": "^6.8",
                 "phpcompatibility/phpcompatibility-wp": "^2.0",
-                "phpstan/extension-installer": "^1.3",
-                "phpstan/phpstan-mockery": "^1.1",
-                "phpstan/phpstan-phpunit": "^1.4",
+                "phpstan/extension-installer": "^1.4",
+                "phpstan/phpstan-mockery": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
                 "roave/security-advisories": "dev-master",
-                "szepeviktor/phpstan-wordpress": "^1.3",
+                "szepeviktor/phpstan-wordpress": "^2.0",
+                "wordpress/mcp-adapter": "^0.7",
                 "wp-coding-standards/wpcs": "^3",
                 "wp-media/phpunit": "^3"
             },
-            "time": "2026-07-21T19:13:38+00:00",
+            "suggest": {
+                "wordpress/mcp-adapter": "Install and activate the MCP Adapter plugin (https://wordpress.org/plugins/mcp-adapter/)"
+            },
+            "time": "2026-10-07T12:14:22+00:00",
             "type": "library",
             "installation-source": "dist",
             "autoload": {
@@ -107,7 +110,7 @@
             ],
             "support": {
                 "issues": "https://github.com/wp-media/mcp-oauth/issues",
-                "source": "https://github.com/wp-media/mcp-oauth/tree/v1.0.3"
+                "source": "https://github.com/wp-media/mcp-oauth/tree/v2.0"
             },
             "install-path": "../wp-media/mcp-oauth"
         }

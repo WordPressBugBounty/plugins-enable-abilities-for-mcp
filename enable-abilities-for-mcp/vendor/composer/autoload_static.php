@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit36a1fbfccd2d6746e899bd2c40a455b7
+class ComposerStaticInit77533d9aa9236e2469855024e751cac3
 {
     public static $files = array (
         '6c592737b91137905268e9a0eb968869' => __DIR__ . '/..' . '/wp-media/apply-filters-typed/functions.php',
@@ -32,6 +32,7 @@ class ComposerStaticInit36a1fbfccd2d6746e899bd2c40a455b7
         'WPMedia\\MCP\\OAuth\\Auth\\ClaudeClientVerifier' => __DIR__ . '/..' . '/wp-media/mcp-oauth/inc/Auth/ClaudeClientVerifier.php',
         'WPMedia\\MCP\\OAuth\\Auth\\ConsentEndpoint' => __DIR__ . '/..' . '/wp-media/mcp-oauth/inc/Auth/ConsentEndpoint.php',
         'WPMedia\\MCP\\OAuth\\Auth\\Discovery\\Endpoints' => __DIR__ . '/..' . '/wp-media/mcp-oauth/inc/Auth/Discovery/Endpoints.php',
+        'WPMedia\\MCP\\OAuth\\Auth\\Discovery\\HealthCheck' => __DIR__ . '/..' . '/wp-media/mcp-oauth/inc/Auth/Discovery/HealthCheck.php',
         'WPMedia\\MCP\\OAuth\\Auth\\Http404Trait' => __DIR__ . '/..' . '/wp-media/mcp-oauth/inc/Auth/Http404Trait.php',
         'WPMedia\\MCP\\OAuth\\Auth\\JWT' => __DIR__ . '/..' . '/wp-media/mcp-oauth/inc/Auth/JWT.php',
         'WPMedia\\MCP\\OAuth\\Auth\\ParseBodyTrait' => __DIR__ . '/..' . '/wp-media/mcp-oauth/inc/Auth/ParseBodyTrait.php',
@@ -53,9 +54,9 @@ class ComposerStaticInit36a1fbfccd2d6746e899bd2c40a455b7
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit36a1fbfccd2d6746e899bd2c40a455b7::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit36a1fbfccd2d6746e899bd2c40a455b7::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit36a1fbfccd2d6746e899bd2c40a455b7::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit77533d9aa9236e2469855024e751cac3::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit77533d9aa9236e2469855024e751cac3::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit77533d9aa9236e2469855024e751cac3::$classMap;
 
         }, null, ClassLoader::class);
     }
