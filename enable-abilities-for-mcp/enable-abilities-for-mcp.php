@@ -3,7 +3,7 @@
  * Plugin Name:       Enable Abilities for MCP
  * Plugin URI:        https://mcp.fabiomontenegro.com/
  * Description:       Connect Claude, ChatGPT & any MCP client to WordPress. 112 abilities: content, SEO, WooCommerce, FSE, LMS & more. Free & self-hosted.
- * Version:           2.13.5
+ * Version:           2.13.6
  * Requires at least: 6.9
  * Requires PHP:      8.0
  * Author:            Fabio Montenegro
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'EWPA_VERSION', '2.13.5' );
+define( 'EWPA_VERSION', '2.13.6' );
 define( 'EWPA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EWPA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'EWPA_OPTION_KEY', 'ewpa_enabled_abilities' );
@@ -227,6 +227,74 @@ function ewpa_maybe_upgrade(): void {
 	}
 
 	update_option( 'ewpa_db_version', EWPA_VERSION );
+}
+
+/*
+ * Settling the once-flagless key migrations has to happen before any of them runs, and
+ * before ewpa_maybe_upgrade() replaces the version they are judged against. Priority 1
+ * puts it ahead of both.
+ */
+add_action( 'plugins_loaded', 'ewpa_settle_unflagged_key_migrations', 1 );
+
+/**
+ * Marks the once-flagless key migrations as done on installs that already ran them.
+ *
+ * Seven migrations, the ones named v251 through v281, used to re-add their abilities on
+ * every request because they never recorded a flag, so an administrator could not
+ * durably disable them. They now carry the usual guard, but adding that guard alone
+ * would let each one run one final time and re-enable an ability the administrator had
+ * removed — undoing the very choice this fix exists to protect.
+ *
+ * On a site whose recorded version already passed the release that introduced a
+ * migration, that migration has run on every request since, so its abilities are there
+ * unless somebody deliberately removed them. Nothing is left to add, and the flag is
+ * simply recorded as done.
+ *
+ * The seven have two entry points — their own plugins_loaded hooks, and
+ * ewpa_run_migrations() on wp_abilities_api_init, which can fire first — so this is
+ * called from both. It reads ewpa_db_version itself instead of taking it as an argument
+ * so either path gets the same answer. Every call after the first one is seven cached
+ * option reads and no writes.
+ *
+ * @return void
+ */
+function ewpa_settle_unflagged_key_migrations(): void {
+	$previous_version = get_option( 'ewpa_db_version' );
+
+	// No recorded version means the install predates ewpa_db_version, written since
+	// 2.0.1, or is brand new. Leave the migrations to run normally; they are idempotent
+	// and flag themselves afterwards.
+	if ( ! is_string( $previous_version ) || '' === $previous_version ) {
+		return;
+	}
+
+	/*
+	 * The release each migration first shipped in, which is not always the one its name
+	 * suggests. Read off the published tags rather than the function names:
+	 * ewpa_maybe_migrate_keys_v251 is already in 2.5.0, and v271 first appears in 2.7.2
+	 * because no 2.7.1 was ever released. A migration settled one release too late costs
+	 * an administrator one unwanted re-enable; one settled too early means its ability
+	 * never gets added at all.
+	 */
+	$migrations = array(
+		'v251' => '2.5.0',
+		'v260' => '2.6.0',
+		'v270' => '2.7.0',
+		'v271' => '2.7.2',
+		'v272' => '2.7.2',
+		'v280' => '2.8.0',
+		'v281' => '2.8.1',
+	);
+
+	foreach ( $migrations as $flag => $introduced_in ) {
+		if ( get_option( 'ewpa_keys_migrated_' . $flag ) ) {
+			continue;
+		}
+
+		if ( version_compare( $previous_version, $introduced_in, '>=' ) ) {
+			update_option( 'ewpa_keys_migrated_' . $flag, true );
+		}
+	}
 }
 
 /**
@@ -792,14 +860,22 @@ function ewpa_maybe_migrate_keys_v250() {
  * @return void
  */
 function ewpa_maybe_migrate_keys_v251(): void {
-	$enabled = get_option( EWPA_OPTION_KEY );
-	if ( ! is_array( $enabled ) ) {
+	if ( get_option( 'ewpa_keys_migrated_v251' ) ) {
 		return;
 	}
+
+	$enabled = get_option( EWPA_OPTION_KEY );
+	if ( ! is_array( $enabled ) ) {
+		update_option( 'ewpa_keys_migrated_v251', true );
+		return;
+	}
+
 	if ( ! in_array( 'ewpa/duplicate-post', $enabled, true ) ) {
 		$enabled[] = 'ewpa/duplicate-post';
 		update_option( EWPA_OPTION_KEY, $enabled );
 	}
+
+	update_option( 'ewpa_keys_migrated_v251', true );
 }
 
 /**
@@ -811,8 +887,13 @@ function ewpa_maybe_migrate_keys_v251(): void {
  * @return void
  */
 function ewpa_maybe_migrate_keys_v260(): void {
+	if ( get_option( 'ewpa_keys_migrated_v260' ) ) {
+		return;
+	}
+
 	$enabled = get_option( EWPA_OPTION_KEY );
 	if ( ! is_array( $enabled ) ) {
+		update_option( 'ewpa_keys_migrated_v260', true );
 		return;
 	}
 
@@ -832,6 +913,8 @@ function ewpa_maybe_migrate_keys_v260(): void {
 	if ( $changed ) {
 		update_option( EWPA_OPTION_KEY, $enabled );
 	}
+
+	update_option( 'ewpa_keys_migrated_v260', true );
 }
 
 /**
@@ -840,8 +923,13 @@ function ewpa_maybe_migrate_keys_v260(): void {
  * @return void
  */
 function ewpa_maybe_migrate_keys_v270(): void {
+	if ( get_option( 'ewpa_keys_migrated_v270' ) ) {
+		return;
+	}
+
 	$enabled = get_option( EWPA_OPTION_KEY );
 	if ( ! is_array( $enabled ) ) {
+		update_option( 'ewpa_keys_migrated_v270', true );
 		return;
 	}
 
@@ -861,6 +949,8 @@ function ewpa_maybe_migrate_keys_v270(): void {
 	if ( $changed ) {
 		update_option( EWPA_OPTION_KEY, $enabled );
 	}
+
+	update_option( 'ewpa_keys_migrated_v270', true );
 }
 
 /**
@@ -869,14 +959,22 @@ function ewpa_maybe_migrate_keys_v270(): void {
  * @return void
  */
 function ewpa_maybe_migrate_keys_v271(): void {
-	$enabled = get_option( EWPA_OPTION_KEY );
-	if ( ! is_array( $enabled ) ) {
+	if ( get_option( 'ewpa_keys_migrated_v271' ) ) {
 		return;
 	}
+
+	$enabled = get_option( EWPA_OPTION_KEY );
+	if ( ! is_array( $enabled ) ) {
+		update_option( 'ewpa_keys_migrated_v271', true );
+		return;
+	}
+
 	if ( ! in_array( 'ewpa/update-term', $enabled, true ) ) {
 		$enabled[] = 'ewpa/update-term';
 		update_option( EWPA_OPTION_KEY, $enabled );
 	}
+
+	update_option( 'ewpa_keys_migrated_v271', true );
 }
 
 /**
@@ -890,8 +988,13 @@ function ewpa_maybe_migrate_keys_v271(): void {
  * @return void
  */
 function ewpa_maybe_migrate_keys_v272(): void {
+	if ( get_option( 'ewpa_keys_migrated_v272' ) ) {
+		return;
+	}
+
 	$enabled = get_option( EWPA_OPTION_KEY );
 	if ( ! is_array( $enabled ) ) {
+		update_option( 'ewpa_keys_migrated_v272', true );
 		return;
 	}
 
@@ -911,6 +1014,8 @@ function ewpa_maybe_migrate_keys_v272(): void {
 	if ( $changed ) {
 		update_option( EWPA_OPTION_KEY, $enabled );
 	}
+
+	update_option( 'ewpa_keys_migrated_v272', true );
 }
 
 /**
@@ -919,14 +1024,22 @@ function ewpa_maybe_migrate_keys_v272(): void {
  * @return void
  */
 function ewpa_maybe_migrate_keys_v280(): void {
-	$enabled = get_option( EWPA_OPTION_KEY );
-	if ( ! is_array( $enabled ) ) {
+	if ( get_option( 'ewpa_keys_migrated_v280' ) ) {
 		return;
 	}
+
+	$enabled = get_option( EWPA_OPTION_KEY );
+	if ( ! is_array( $enabled ) ) {
+		update_option( 'ewpa_keys_migrated_v280', true );
+		return;
+	}
+
 	if ( ! in_array( 'ewpa/get-accessibility-snapshot', $enabled, true ) ) {
 		$enabled[] = 'ewpa/get-accessibility-snapshot';
 		update_option( EWPA_OPTION_KEY, $enabled );
 	}
+
+	update_option( 'ewpa_keys_migrated_v280', true );
 }
 
 /**
@@ -935,14 +1048,22 @@ function ewpa_maybe_migrate_keys_v280(): void {
  * @return void
  */
 function ewpa_maybe_migrate_keys_v281(): void {
-	$enabled = get_option( EWPA_OPTION_KEY );
-	if ( ! is_array( $enabled ) ) {
+	if ( get_option( 'ewpa_keys_migrated_v281' ) ) {
 		return;
 	}
+
+	$enabled = get_option( EWPA_OPTION_KEY );
+	if ( ! is_array( $enabled ) ) {
+		update_option( 'ewpa_keys_migrated_v281', true );
+		return;
+	}
+
 	if ( ! in_array( 'ewpa/assign-post-terms', $enabled, true ) ) {
 		$enabled[] = 'ewpa/assign-post-terms';
 		update_option( EWPA_OPTION_KEY, $enabled );
 	}
+
+	update_option( 'ewpa_keys_migrated_v281', true );
 }
 
 /**
@@ -1033,6 +1154,10 @@ function ewpa_maybe_migrate_keys_v2110(): void {
  * @return void
  */
 function ewpa_run_migrations(): void {
+	// wp_abilities_api_init can fire before plugins_loaded reaches priority 1, so the
+	// seven that used to run unflagged are settled here too, before any of them runs.
+	ewpa_settle_unflagged_key_migrations();
+
 	ewpa_maybe_migrate_keys_v251();
 	ewpa_maybe_migrate_keys_v260();
 	ewpa_maybe_migrate_keys_v270();
@@ -1092,7 +1217,7 @@ function ewpa_get_legacy_key_map() {
  */
 function ewpa_get_abilities_registry() {
 	return array(
-		'core'        => array(
+		'core'                    => array(
 			'section_label' => __( 'WordPress Core', 'enable-abilities-for-mcp' ),
 			'section_desc'  => __( 'Native WordPress core abilities. Exposed to MCP with the public flag.', 'enable-abilities-for-mcp' ),
 			'section_icon'  => 'dashicons-wordpress',
@@ -1111,7 +1236,7 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'read'        => array(
+		'read'                    => array(
 			'section_label' => __( 'Read (Query Only)', 'enable-abilities-for-mcp' ),
 			'section_desc'  => __( 'Only query data, do not modify anything. Safest to expose via MCP.', 'enable-abilities-for-mcp' ),
 			'section_icon'  => 'dashicons-visibility',
@@ -1154,53 +1279,53 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'write'       => array(
+		'write'                   => array(
 			'section_label' => __( 'Write (Create & Modify)', 'enable-abilities-for-mcp' ),
 			'section_desc'  => __( 'Create or modify content. Require appropriate MCP user permissions.', 'enable-abilities-for-mcp' ),
 			'section_icon'  => 'dashicons-edit',
 			'section_badge' => 'warning',
 			'abilities'     => array(
-				'ewpa/create-post'      => array(
+				'ewpa/create-post'       => array(
 					'label' => __( 'Create Post', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Create a new post with title, content, categories, tags, featured image, and more.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/update-post'      => array(
+				'ewpa/update-post'       => array(
 					'label' => __( 'Update Post', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Modify an existing post. Only updates the fields provided.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/delete-post'      => array(
+				'ewpa/delete-post'       => array(
 					'label' => __( 'Delete Post', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Send a post to trash or permanently delete it.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/create-category'  => array(
+				'ewpa/create-category'   => array(
 					'label' => __( 'Create Category', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Create a new category with name, slug, description, and parent.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/create-tag'       => array(
+				'ewpa/create-tag'        => array(
 					'label' => __( 'Create Tag', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Create a new tag with name, slug, and description.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/create-page'      => array(
+				'ewpa/create-page'       => array(
 					'label' => __( 'Create Page', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Create a new page with title, content, status, and parent page.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/moderate-comment' => array(
+				'ewpa/moderate-comment'  => array(
 					'label' => __( 'Moderate Comment', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Change comment status: approve, hold, spam, or trash.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/reply-comment'    => array(
+				'ewpa/reply-comment'     => array(
 					'label' => __( 'Reply to Comment', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Reply to an existing comment as the authenticated user.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/update-comment'   => array(
+				'ewpa/update-comment'    => array(
 					'label' => __( 'Update Comment', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Update content, author name, email, or WordPress user of an existing comment.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/upload-image'     => array(
+				'ewpa/upload-image'      => array(
 					'label' => __( 'Upload Image from URL', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Download an image from an external URL and register it in the media library. Returns the attachment ID.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/duplicate-post'   => array(
+				'ewpa/duplicate-post'    => array(
 					'label' => __( 'Duplicate Post / Page / CPT', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Create an exact copy of any post, page, or CPT item — including all meta and taxonomy terms. The duplicate is saved as draft by default.', 'enable-abilities-for-mcp' ),
 				),
@@ -1210,13 +1335,13 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'seo'         => array(
+		'seo'                     => array(
 			'section_label'  => __( 'SEO — Rank Math', 'enable-abilities-for-mcp' ),
 			'section_desc'   => __( 'Query and update Rank Math SEO metadata on posts and pages.', 'enable-abilities-for-mcp' ),
 			'section_icon'   => 'dashicons-search',
 			'section_notice' => 'ewpa_section_notice_rankmath',
 			'abilities'      => array(
-				'ewpa/get-rankmath'    => array(
+				'ewpa/get-rankmath'           => array(
 					'label' => __( 'Get Rank Math Metadata', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Get Rank Math SEO metadata for a post or page: title, description, keywords, robots, Open Graph, and more.', 'enable-abilities-for-mcp' ),
 				),
@@ -1230,17 +1355,17 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'seopress'    => array(
+		'seopress'                => array(
 			'section_label'  => __( 'SEO — SEOPress', 'enable-abilities-for-mcp' ),
 			'section_desc'   => __( 'Query and update SEOPress metadata on posts and pages.', 'enable-abilities-for-mcp' ),
 			'section_icon'   => 'dashicons-search',
 			'section_notice' => 'ewpa_section_notice_seopress',
 			'abilities'      => array(
-				'ewpa/get-seopress'    => array(
+				'ewpa/get-seopress'                  => array(
 					'label' => __( 'Get SEOPress Metadata', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Get SEOPress metadata for a post or page: title, description, focus keyword, robots, canonical, Open Graph, and Twitter Card.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/update-seopress' => array(
+				'ewpa/update-seopress'               => array(
 					'label' => __( 'Update SEOPress Metadata', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Update SEOPress SEO title, description, focus keyword, canonical URL, robots directives, and Open Graph / Twitter Card fields.', 'enable-abilities-for-mcp' ),
 				),
@@ -1250,7 +1375,7 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'yoast'       => array(
+		'yoast'                   => array(
 			'section_label'  => __( 'SEO — Yoast SEO', 'enable-abilities-for-mcp' ),
 			'section_desc'   => __( 'Query and update Yoast SEO metadata on posts and pages.', 'enable-abilities-for-mcp' ),
 			'section_icon'   => 'dashicons-search',
@@ -1270,7 +1395,7 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'menus'       => array(
+		'menus'                   => array(
 			'section_label' => __( 'Navigation Menus', 'enable-abilities-for-mcp' ),
 			'section_desc'  => __( 'Inspect and manage navigation menus, their items, and theme locations.', 'enable-abilities-for-mcp' ),
 			'section_icon'  => 'dashicons-menu-alt',
@@ -1312,20 +1437,20 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'utility'     => array(
+		'utility'                 => array(
 			'section_label' => __( 'Utility', 'enable-abilities-for-mcp' ),
 			'section_desc'  => __( 'Auxiliary tools that complement the workflow.', 'enable-abilities-for-mcp' ),
 			'section_icon'  => 'dashicons-admin-tools',
 			'abilities'     => array(
-				'ewpa/search-replace' => array(
+				'ewpa/search-replace'     => array(
 					'label' => __( 'Search and Replace', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Search for text in a post content and replace it with another.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/site-stats'        => array(
+				'ewpa/site-stats'         => array(
 					'label' => __( 'Site Statistics', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Site summary: total posts, pages, categories, tags, comments, and users.', 'enable-abilities-for-mcp' ),
 				),
-				'ewpa/update-post-meta'  => array(
+				'ewpa/update-post-meta'   => array(
 					'label' => __( 'Update Post Meta', 'enable-abilities-for-mcp' ),
 					'desc'  => __( 'Write any post meta field by exact key. Requires edit_post capability on the target post.', 'enable-abilities-for-mcp' ),
 				),
@@ -1343,38 +1468,38 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'code-snippets' => array(
-				'section_label'  => __( 'Code Snippets', 'enable-abilities-for-mcp' ),
-				'section_desc'   => __( 'Create, read, and update PHP code snippets via the Code Snippets plugin. Requires manage_options. New snippets are saved inactive, and activating one always needs an administrator to review the code and confirm it in wp-admin.', 'enable-abilities-for-mcp' ),
-				'section_icon'   => 'dashicons-editor-code',
-				'section_badge'  => 'danger',
-				'section_notice' => 'ewpa_section_notice_code_snippets',
-				'abilities'      => array(
-					'ewpa/create-code-snippet'     => array(
-						'label' => __( 'Create Code Snippet', 'enable-abilities-for-mcp' ),
-						'desc'  => __( 'Creates a PHP snippet (always inactive). Validates syntax, blocks dangerous functions (eval, exec, shell_exec, etc.), and fires an audit action hook.', 'enable-abilities-for-mcp' ),
-					),
-					'ewpa/get-code-snippets'       => array(
-						'label' => __( 'List Code Snippets', 'enable-abilities-for-mcp' ),
-						'desc'  => __( 'List snippets with name, type, scope, active state, and tags. The code itself is not included.', 'enable-abilities-for-mcp' ),
-					),
-					'ewpa/get-code-snippet'        => array(
-						'label' => __( 'Get Code Snippet', 'enable-abilities-for-mcp' ),
-						'desc'  => __( 'Read one snippet by ID, including its code.', 'enable-abilities-for-mcp' ),
-					),
-					'ewpa/update-code-snippet'     => array(
-						'label'   => __( 'Update Code Snippet', 'enable-abilities-for-mcp' ),
-						'desc'    => __( 'Change a PHP snippet\'s name, description, code, scope, or tags. New code is validated; an active snippet whose code changes is deactivated. Opt-in required.', 'enable-abilities-for-mcp' ),
-						'default' => false,
-					),
-					'ewpa/set-code-snippet-active' => array(
-						'label'   => __( 'Set Code Snippet Active', 'enable-abilities-for-mcp' ),
-						'desc'    => __( 'Deactivate a snippet, or request its activation. Activation is never automatic: an administrator must review the code and confirm it in wp-admin. Opt-in required.', 'enable-abilities-for-mcp' ),
-						'default' => false,
-					),
+		'code-snippets'           => array(
+			'section_label'  => __( 'Code Snippets', 'enable-abilities-for-mcp' ),
+			'section_desc'   => __( 'Create, read, and update PHP code snippets via the Code Snippets plugin. Requires manage_options. New snippets are saved inactive, and activating one always needs an administrator to review the code and confirm it in wp-admin.', 'enable-abilities-for-mcp' ),
+			'section_icon'   => 'dashicons-editor-code',
+			'section_badge'  => 'danger',
+			'section_notice' => 'ewpa_section_notice_code_snippets',
+			'abilities'      => array(
+				'ewpa/create-code-snippet'     => array(
+					'label' => __( 'Create Code Snippet', 'enable-abilities-for-mcp' ),
+					'desc'  => __( 'Creates a PHP snippet (always inactive). Validates syntax, blocks dangerous functions (eval, exec, shell_exec, etc.), and fires an audit action hook.', 'enable-abilities-for-mcp' ),
+				),
+				'ewpa/get-code-snippets'       => array(
+					'label' => __( 'List Code Snippets', 'enable-abilities-for-mcp' ),
+					'desc'  => __( 'List snippets with name, type, scope, active state, and tags. The code itself is not included.', 'enable-abilities-for-mcp' ),
+				),
+				'ewpa/get-code-snippet'        => array(
+					'label' => __( 'Get Code Snippet', 'enable-abilities-for-mcp' ),
+					'desc'  => __( 'Read one snippet by ID, including its code.', 'enable-abilities-for-mcp' ),
+				),
+				'ewpa/update-code-snippet'     => array(
+					'label'   => __( 'Update Code Snippet', 'enable-abilities-for-mcp' ),
+					'desc'    => __( 'Change a PHP snippet\'s name, description, code, scope, or tags. New code is validated; an active snippet whose code changes is deactivated. Opt-in required.', 'enable-abilities-for-mcp' ),
+					'default' => false,
+				),
+				'ewpa/set-code-snippet-active' => array(
+					'label'   => __( 'Set Code Snippet Active', 'enable-abilities-for-mcp' ),
+					'desc'    => __( 'Deactivate a snippet, or request its activation. Activation is never automatic: an administrator must review the code and confirm it in wp-admin. Opt-in required.', 'enable-abilities-for-mcp' ),
+					'default' => false,
 				),
 			),
-			'multilanguage' => array(
+		),
+		'multilanguage'           => array(
 			'section_label'  => __( 'Multilanguage', 'enable-abilities-for-mcp' ),
 			'section_desc'   => __( 'List languages, create and link translations, and assign languages to posts and taxonomy terms via Polylang, WPML, or Linguator AI.', 'enable-abilities-for-mcp' ),
 			'section_icon'   => 'dashicons-translation',
@@ -1419,7 +1544,7 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'woocommerce' => array(
+		'woocommerce'             => array(
 			'section_label'  => __( 'WooCommerce', 'enable-abilities-for-mcp' ),
 			'section_desc'   => __( 'Query and manage WooCommerce products, orders, and customers using the native WooCommerce API (HPOS-compatible).', 'enable-abilities-for-mcp' ),
 			'section_icon'   => 'dashicons-cart',
@@ -1456,7 +1581,7 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'tec'         => array(
+		'tec'                     => array(
 			'section_label'  => __( 'The Events Calendar', 'enable-abilities-for-mcp' ),
 			'section_desc'   => __( 'Query and manage events from The Events Calendar plugin, including dates, venues, and organizers.', 'enable-abilities-for-mcp' ),
 			'section_icon'   => 'dashicons-calendar-alt',
@@ -1480,7 +1605,7 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'cpt'         => array(
+		'cpt'                     => array(
 			'section_label'  => __( 'Custom Post Types', 'enable-abilities-for-mcp' ),
 			'section_desc'   => __( 'Discover and manage Custom Post Types registered by plugins or themes. Excludes posts, pages, and attachments which have dedicated abilities.', 'enable-abilities-for-mcp' ),
 			'section_icon'   => 'dashicons-archive',
@@ -1708,7 +1833,7 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'accessibility' => array(
+		'accessibility'           => array(
 			'section_label' => __( 'Accessibility (WCAG)', 'enable-abilities-for-mcp' ),
 			'section_desc'  => __( 'Detect accessibility issues WordPress can diagnose server-side. Does not replace a browser-based audit (e.g. Lighthouse) for color contrast, ARIA, or keyboard navigation.', 'enable-abilities-for-mcp' ),
 			'section_icon'  => 'dashicons-universal-access-alt',
@@ -1719,7 +1844,7 @@ function ewpa_get_abilities_registry() {
 				),
 			),
 		),
-		'fse-templates' => array(
+		'fse-templates'           => array(
 			'section_label'  => __( 'FSE Block Templates', 'enable-abilities-for-mcp' ),
 			'section_desc'   => __( 'Inspect and edit Full Site Editing (FSE/Gutenberg) block templates and template parts. Only available when the active theme supports block templates.', 'enable-abilities-for-mcp' ),
 			'section_icon'   => 'dashicons-layout',
